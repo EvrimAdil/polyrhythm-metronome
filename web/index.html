@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Poliritmik Metronom | Pro Metronome Standartları</title>
+  <meta name="description" content="Mobil öncelikli, düşük gecikmeli Web Audio API ve Canvas destekli profesyonel poliritmik metronom.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Safari & Mobil Ses Kilit Açma Uyarısı -->
+  <div id="audioUnlockBanner" class="unlock-banner hidden" role="alert">
+    <div class="unlock-content">
+      <span class="unlock-icon">🔊</span>
+      <div class="unlock-text">
+        <strong>Ses Motorunu Etkinleştir</strong>
+        <span>Safari ses kısıtlamasını aşmak için dokunun</span>
+      </div>
+      <button id="btnUnlockAudio" class="btn-unlock">Etkinleştir</button>
+    </div>
+  </div>
+
+  <div class="mobile-viewport">
+    <!-- 1. ÜST PANEL: Header & Tempo Kontrolleri -->
+    <header class="top-panel">
+      <!-- Mini Header Bar -->
+      <div class="top-bar">
+        <div class="brand-group">
+          <span class="brand-title">POLYRHYTHM</span>
+          <span class="brand-sub">PRO</span>
+        </div>
+        <div class="top-actions">
+          <div class="status-indicator" id="engineStatus" title="Motor Durumu">
+            <span class="status-dot"></span>
+            <span id="statusText">HAZIR</span>
+          </div>
+          <button id="btnOpenDrawer" class="btn-icon-nav" aria-label="Menü ve Ayarlar" title="Ön Ayarlar & Antrenörler">
+            <span>⚡</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- BPM ve Taşıma Kontrolleri -->
+      <div class="bpm-transport-box">
+        <!-- Sol: Büyük BPM ve Hassas Stepper'lar -->
+        <div class="bpm-display-section">
+          <div class="bpm-value-wrap">
+            <button id="btnBpmMinus1" class="btn-bpm-step" title="-1 BPM">−</button>
+            <div class="bpm-text-group">
+              <span id="jogBpmDisplay" class="bpm-number">120</span>
+              <span class="bpm-unit">BPM</span>
+            </div>
+            <button id="btnBpmPlus1" class="btn-bpm-step" title="+1 BPM">+</button>
+          </div>
+          <div class="bpm-quick-steppers">
+            <button id="btnBpmMinus5" class="btn-quick-step">-5</button>
+            <button id="btnBpmPlus5" class="btn-quick-step">+5</button>
+            <button id="btnTapTempo" class="btn-tap-compact" title="Tap Tempo">TAP</button>
+          </div>
+        </div>
+
+        <!-- Sağ: Kompakt Jog Wheel & Ana Başlat Butonu -->
+        <div class="transport-action-section">
+          <div class="jog-compact-wrap">
+            <div class="jog-wheel-compact" id="jogWheel" tabIndex="0" role="slider" aria-label="Tempo Jog Wheel">
+              <div class="jog-dial-compact" id="jogDial">
+                <div class="jog-indicator-dot"></div>
+              </div>
+            </div>
+            <span class="jog-micro-hint">DÖNDÜR</span>
+          </div>
+
+          <button id="btnPlayPause" class="btn-master-play" aria-label="Başlat veya Durdur">
+            <span class="play-icon" id="playIcon">▶</span>
+            <span class="play-text" id="playLabel">BAŞLAT</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- 2. MERKEZ PANEL: Poligon Faz Görseli (Canvas) -->
+    <section class="center-panel">
+      <div class="canvas-box">
+        <canvas id="phaseCanvas" width="400" height="400"></canvas>
+        <div class="apex-indicator" title="Tepe Vuruş Çakışma Noktası">
+          <div class="apex-glow-pip"></div>
+          <div class="apex-pointer-tri"></div>
+        </div>
+        <div id="collisionFlash" class="canvas-collision-flash"></div>
+      </div>
+    </section>
+
+    <!-- 3. ALT PANEL: Ritim Katmanları (Her katman yatay tek satır) -->
+    <section class="bottom-panel">
+      <div class="layers-header-bar">
+        <span class="section-tag">RİTİM KATMANLARI</span>
+        <div class="layers-header-actions">
+          <button id="btnResetPhase" class="btn-micro" title="Fazları Eşle">↺ Senkron</button>
+          <button id="btnAddLayer" class="btn-micro btn-add-highlight" title="Yeni Katman">+ Katman</button>
+        </div>
+      </div>
+
+      <!-- Tek Satırlık Kompakt Katman Listesi -->
+      <div id="layersList" class="layers-compact-list">
+        <!-- JS tarafından tek satır formatında üretilir -->
+      </div>
+    </section>
+  </div>
+
+  <!-- 4. ALT ÇEKMECE (BOTTOM SHEET / MODAL) -->
+  <div id="bottomDrawerOverlay" class="drawer-overlay hidden">
+    <div class="drawer-sheet" id="drawerSheet">
+      <div class="drawer-header">
+        <div class="drawer-drag-handle"></div>
+        <div class="drawer-title-row">
+          <h3>⚡ Ön Ayarlar & Antrenörler</h3>
+          <button id="btnCloseDrawer" class="btn-close-drawer">✕</button>
+        </div>
+      </div>
+
+      <div class="drawer-body">
+        <!-- Tabs -->
+        <div class="drawer-tabs">
+          <button class="drawer-tab active" data-tab="presets">Ön Ayarlar</button>
+          <button class="drawer-tab" data-tab="trainers">Antrenörler</button>
+          <button class="drawer-tab" data-tab="settings">Ayarlar</button>
+        </div>
+
+        <!-- Tab 1: Ön Ayarlar (Presets) -->
+        <div class="tab-pane active" id="panePresets">
+          <div class="presets-compact-grid" id="presetPillList">
+            <button class="preset-tile" data-preset="poly34">
+              <span class="preset-name">3 : 4</span>
+              <span class="preset-desc">Standart Poliritim</span>
+            </button>
+            <button class="preset-tile" data-preset="poly23">
+              <span class="preset-name">2 : 3</span>
+              <span class="preset-desc">Klasik Hemiyol</span>
+            </button>
+            <button class="preset-tile" data-preset="poly45">
+              <span class="preset-name">4 : 5</span>
+              <span class="preset-desc">Beşleme (Quintuplet)</span>
+            </button>
+            <button class="preset-tile" data-preset="poly57">
+              <span class="preset-name">5 : 7</span>
+              <span class="preset-desc">Kompleks Mikro</span>
+            </button>
+            <button class="preset-tile" data-preset="euc38">
+              <span class="preset-name">E(3, 8)</span>
+              <span class="preset-desc">Küba Tresillo</span>
+            </button>
+            <button class="preset-tile" data-preset="euc516">
+              <span class="preset-name">E(5, 16)</span>
+              <span class="preset-desc">Bossa Nova Clave</span>
+            </button>
+            <button class="preset-tile" data-preset="flamenco12">
+              <span class="preset-name">12 / 8</span>
+              <span class="preset-desc">Flamenko Bulerías</span>
+            </button>
+            <button class="preset-tile" data-preset="brubeck98">
+              <span class="preset-name">9 / 8</span>
+              <span class="preset-desc">Brubeck (2+2+2+3)</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Tab 2: Antrenörler (Trainers) -->
+        <div class="tab-pane" id="paneTrainers">
+          <!-- Tempo Trainer -->
+          <div class="drawer-card">
+            <div class="drawer-card-head">
+              <div class="head-left">
+                <label class="toggle-switch">
+                  <input type="checkbox" id="tempoTrainerEnable">
+                  <span class="toggle-slider"></span>
+                </label>
+                <strong>Tempo Trainer</strong>
+              </div>
+              <span class="badge" id="tempoTrainerStatusBadge">PASİF</span>
+            </div>
+            <div class="drawer-fields-grid">
+              <div class="field-item">
+                <span>Başlangıç:</span>
+                <input type="number" id="tempoStartBpm" value="100" min="30" max="300">
+              </div>
+              <div class="field-item">
+                <span>Hedef:</span>
+                <input type="number" id="tempoTargetBpm" value="150" min="30" max="300">
+              </div>
+              <div class="field-item">
+                <span>Adım (BPM):</span>
+                <input type="number" id="tempoStepBpm" value="2" min="1" max="20">
+              </div>
+              <div class="field-item">
+                <span>Aralık (Ölçü):</span>
+                <input type="number" id="tempoBarsInterval" value="4" min="1" max="64">
+              </div>
+            </div>
+            <label class="checkbox-row">
+              <input type="checkbox" id="tempoAutoReverse" checked>
+              <span>Hedefe varınca yönü tersine çevir</span>
+            </label>
+            <div class="progress-bar-wrap">
+              <div id="tempoProgressBar" class="progress-fill" style="width: 0%;"></div>
+            </div>
+          </div>
+
+          <!-- Mute Trainer -->
+          <div class="drawer-card">
+            <div class="drawer-card-head">
+              <div class="head-left">
+                <label class="toggle-switch">
+                  <input type="checkbox" id="muteTrainerEnable">
+                  <span class="toggle-slider"></span>
+                </label>
+                <strong>Mute Trainer (İç Tempo)</strong>
+              </div>
+              <span class="badge" id="muteTrainerStatusBadge">PASİF</span>
+            </div>
+            <div class="drawer-fields-grid">
+              <div class="field-item">
+                <span>Sesli Ölçü:</span>
+                <input type="number" id="mutePlayBars" value="4" min="1" max="32">
+              </div>
+              <div class="field-item">
+                <span>Sessiz Ölçü:</span>
+                <input type="number" id="muteSilentBars" value="2" min="1" max="32">
+              </div>
+            </div>
+            <div class="mute-status-box" id="muteStatusDisplay">
+              <span class="mute-indicator-state">SESLİ (ÇALIYOR)</span>
+              <span id="muteCounterText">Ölçü: 0 / 4</span>
+            </div>
+            <div class="progress-bar-wrap">
+              <div id="muteProgressBar" class="progress-fill mute-fill" style="width: 0%;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 3: Genel Ayarlar & Mikser -->
+        <div class="tab-pane" id="paneSettings">
+          <div class="drawer-card">
+            <div class="setting-row">
+              <label for="masterTimeSigNum">Ana Ölçü (Zaman İmza):</label>
+              <div class="time-sig-wrap">
+                <input type="number" id="masterTimeSigNum" min="1" max="16" value="4" class="input-tiny">
+                <span>/</span>
+                <select id="masterTimeSigDen" class="select-tiny">
+                  <option value="2">2</option>
+                  <option value="4" selected>4</option>
+                  <option value="8">8</option>
+                  <option value="16">16</option>
+                </select>
+              </div>
+            </div>
+            <div class="setting-row">
+              <label for="masterVolume">Ana Ses Düzeyi:</label>
+              <div class="slider-row">
+                <input type="range" id="masterVolume" min="0" max="1" step="0.01" value="0.85">
+                <span id="masterVolumeVal">85%</span>
+              </div>
+            </div>
+            <div class="setting-row">
+              <span>Görsel Etiketler:</span>
+              <button id="btnToggleLabels" class="btn-micro">Aç/Kapat</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. KATMAN AYARLARI MODALI (Kompakt Popover) -->
+  <div id="layerSettingsModal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <span class="modal-title" id="layerModalTitle">Katman Ayarları</span>
+        <button id="btnCloseLayerModal" class="btn-close-modal">✕</button>
+      </div>
+      <div class="modal-body" id="layerModalBody">
+        <!-- JS dinamik olarak ilgili katmanın ayarlarını doldurur -->
+      </div>
+    </div>
+  </div>
+
+  <!-- JS Dosyası -->
+  <script src="app.js"></script>
+</body>
+</html>
