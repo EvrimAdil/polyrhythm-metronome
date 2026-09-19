@@ -105,7 +105,50 @@
 
       <!-- Single Row Compact Layers List -->
       <div id="layersList" class="layers-compact-list">
-        <!-- Rendered dynamically by app.js -->
+        <!-- Initial Structure (Rendered and hydrated dynamically by app.js) -->
+        <div class="layer-row" style="--layer-color: #00f0ff;">
+          <div class="layer-stepper-group">
+            <span class="layer-badge">1</span>
+            <button class="btn-pulse-step btn-minus-pulse" data-id="0">−</button>
+            <span class="pulse-count-val">3</span>
+            <button class="btn-pulse-step btn-plus-pulse" data-id="0">+</button>
+          </div>
+          <select class="sound-kit-select select-layer-kit" data-id="0" title="Sound Kit">
+            <option value="digital">Digital</option>
+            <option value="woodblock">Woodblock</option>
+            <option value="snare">Snare / Rim</option>
+            <option value="hihat" selected>Hi-Hat</option>
+            <option value="mechanical">Mechanical</option>
+          </select>
+          <div class="layer-pads-scroll" data-layer-idx="0">
+            <div class="pad-dot accent-2" data-layer="0" data-step="0" title="Beat 1">1</div>
+            <div class="pad-dot accent-1" data-layer="0" data-step="1" title="Beat 2">2</div>
+            <div class="pad-dot accent-1" data-layer="0" data-step="2" title="Beat 3">3</div>
+          </div>
+          <button class="btn-layer-gear" data-id="0" title="Layer Settings">⚙️</button>
+        </div>
+        <div class="layer-row" style="--layer-color: #ff9100;">
+          <div class="layer-stepper-group">
+            <span class="layer-badge">2</span>
+            <button class="btn-pulse-step btn-minus-pulse" data-id="1">−</button>
+            <span class="pulse-count-val">4</span>
+            <button class="btn-pulse-step btn-plus-pulse" data-id="1">+</button>
+          </div>
+          <select class="sound-kit-select select-layer-kit" data-id="1" title="Sound Kit">
+            <option value="digital">Digital</option>
+            <option value="woodblock">Woodblock</option>
+            <option value="snare" selected>Snare / Rim</option>
+            <option value="hihat">Hi-Hat</option>
+            <option value="mechanical">Mechanical</option>
+          </select>
+          <div class="layer-pads-scroll" data-layer-idx="1">
+            <div class="pad-dot accent-2" data-layer="1" data-step="0" title="Beat 1">1</div>
+            <div class="pad-dot accent-1" data-layer="1" data-step="1" title="Beat 2">2</div>
+            <div class="pad-dot accent-1" data-layer="1" data-step="2" title="Beat 3">3</div>
+            <div class="pad-dot accent-1" data-layer="1" data-step="3" title="Beat 4">4</div>
+          </div>
+          <button class="btn-layer-gear" data-id="1" title="Layer Settings">⚙️</button>
+        </div>
       </div>
     </section>
 

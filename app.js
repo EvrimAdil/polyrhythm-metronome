@@ -21,21 +21,36 @@ const BeatAccent = {
   DOWNBEAT: 2
 };
 
-const SoundPreset = {
-  DIGITAL: 0,
-  WOODBLOCK: 1,
-  MECHANICAL: 2,
-  SNARE_RIM: 3,
-  HIHAT: 4
+const SoundKit = {
+  DIGITAL: 'digital',
+  WOODBLOCK: 'woodblock',
+  SNARE_RIM: 'snare',
+  HIHAT: 'hihat',
+  MECHANICAL: 'mechanical'
 };
 
-const SOUND_PRESET_NAMES = {
-  [SoundPreset.DIGITAL]: 'Digital',
-  [SoundPreset.WOODBLOCK]: 'Woodblock',
-  [SoundPreset.MECHANICAL]: 'Mechanical',
-  [SoundPreset.SNARE_RIM]: 'Snare/Rim',
-  [SoundPreset.HIHAT]: 'Hi-Hat'
+const SoundPreset = {
+  DIGITAL: 'digital',
+  WOODBLOCK: 'woodblock',
+  MECHANICAL: 'mechanical',
+  SNARE_RIM: 'snare',
+  HIHAT: 'hihat',
+  0: 'digital',
+  1: 'woodblock',
+  2: 'mechanical',
+  3: 'snare',
+  4: 'hihat'
 };
+
+const SOUND_KIT_NAMES = {
+  'digital': 'Digital',
+  'woodblock': 'Woodblock',
+  'snare': 'Snare / Rim',
+  'hihat': 'Hi-Hat',
+  'mechanical': 'Mechanical'
+};
+
+const SOUND_PRESET_NAMES = SOUND_KIT_NAMES;
 
 const RhythmMode = {
   POLYRHYTHMIC: 0, // Ortak ölçü süresinde X:Y oranları
@@ -217,7 +232,8 @@ class Layer {
     this.volume = 0.85;
     this.pan = (id === 0) ? -0.4 : (id === 1 ? 0.4 : 0.0);
     this.pitchShift = 1.0;
-    this.soundPreset = (id === 0) ? SoundPreset.HIHAT : (id === 1 ? SoundPreset.SNARE_RIM : SoundPreset.WOODBLOCK);
+    this.soundKit = (id === 0) ? 'hihat' : (id === 1 ? 'snare' : (id === 2 ? 'woodblock' : (id === 3 ? 'mechanical' : 'digital')));
+    this.soundPreset = this.soundKit;
     this.synthFreq = DEFAULT_FREQS[id % DEFAULT_FREQS.length];
     this.isMuted = false;
     this.isSolo = false;
@@ -306,7 +322,7 @@ class AudioEngine {
       this.masterGainNode = this.audioCtx.createGain();
       this.masterGainNode.gain.setValueAtTime(0.85, this.audioCtx.currentTime);
       this.masterGainNode.connect(this.audioCtx.destination);
-      this.initSoundPresets();
+      this.getNoiseBuffer();
     }
     if (this.audioCtx.state === 'suspended') {
       return this.audioCtx.resume();
@@ -422,7 +438,7 @@ class AudioEngine {
       const accent = layer.accents[layer.currentStep % layer.accents.length] ?? BeatAccent.NORMAL;
 
       if (isAudible && !this.trainers.muteTrainer.isMuted) {
-        this.synthesizeClick(layer, accent, layer.nextTriggerTime);
+        this.triggerClick(layer, accent, layer.nextTriggerTime);
       }
 
       if (this.onBeatScheduled) {
@@ -453,7 +469,7 @@ class AudioEngine {
       const accent = layer.accents[layer.currentStep % layer.accents.length] ?? BeatAccent.NORMAL;
 
       if (isAudible && !this.trainers.muteTrainer.isMuted) {
-        this.synthesizeClick(layer, accent, layer.nextTriggerTime);
+        this.triggerClick(layer, accent, layer.nextTriggerTime);
       }
 
       if (this.onBeatScheduled) {
@@ -484,7 +500,7 @@ class AudioEngine {
       const accent = layer.accents[layer.currentStep % layer.accents.length] ?? BeatAccent.MUTE;
 
       if (isAudible && !this.trainers.muteTrainer.isMuted) {
-        this.synthesizeClick(layer, accent, layer.nextTriggerTime);
+        this.triggerClick(layer, accent, layer.nextTriggerTime);
       }
 
       if (this.onBeatScheduled) {
@@ -506,186 +522,292 @@ class AudioEngine {
     }
   }
 
-  initSoundPresets() {
-    if (this.presetBuffers) return;
-    const sr = this.audioCtx.sampleRate || 48000;
-    this.presetBuffers = {};
+  getNoiseBuffer() {
+    if (!this.noiseBuffer && this.audioCtx) {
+      const sr = this.audioCtx.sampleRate || 44100;
+      const bufferSize = sr * 2; // 2 seconds of reusable white noise
+      const buffer = this.audioCtx.createBuffer(1, bufferSize, sr);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = Math.random() * 2 - 1;
+      }
+      this.noiseBuffer = buffer;
+    }
+    return this.noiseBuffer;
+  }
 
-    const createBuffer = (durationSec, fillFn) => {
-      const numFrames = Math.max(1, Math.floor(sr * durationSec));
-      const buf = this.audioCtx.createBuffer(1, numFrames, sr);
-      const data = buf.getChannelData(0);
-      let peak = 0.0001;
+  /**
+   * Web Audio API üzerinde doğrudan perküsyon sentezleyen tetikleme fonksiyonu
+   * @param {Layer} layer - Ritim katmanı
+   * @param {number} accent - BeatAccent (DOWNBEAT | NORMAL | MUTE)
+   * @param {number} triggerTime - Web Audio timeline tetiklenme zamanı (sn)
+   */
+  triggerClick(layer, accent, triggerTime) {
+    if (accent === BeatAccent.MUTE || !this.audioCtx) return;
 
-      for (let i = 0; i < numFrames; i++) {
-        const t = i / sr;
-        const val = fillFn(t, i, numFrames, sr);
-        data[i] = val;
-        const absVal = Math.abs(val);
-        if (absVal > peak) peak = absVal;
+    const isDownbeat = (accent === BeatAccent.DOWNBEAT);
+    const velocity = isDownbeat ? 1.15 : 0.85;
+    const targetGain = Math.max(0, Math.min(1.5, layer.volume * velocity));
+
+    // Katman Ses Seviyesi (GainNode)
+    const voiceGain = this.audioCtx.createGain();
+    voiceGain.gain.setValueAtTime(targetGain, triggerTime);
+
+    // Katman Panoraması (StereoPannerNode)
+    if (this.audioCtx.createStereoPanner) {
+      const panner = this.audioCtx.createStereoPanner();
+      panner.pan.setValueAtTime(Math.max(-1, Math.min(1, layer.pan || 0)), triggerTime);
+      voiceGain.connect(panner);
+      panner.connect(this.masterGainNode);
+    } else {
+      voiceGain.connect(this.masterGainNode);
+    }
+
+    // Ses Kiti Seçimi
+    let kit = layer.soundKit;
+    if (!kit && layer.soundPreset !== undefined) {
+      kit = layer.soundPreset;
+    }
+    // Geriye dönük uyumluluk için normalize et
+    if (kit === 0 || kit === '0') kit = 'digital';
+    else if (kit === 1 || kit === '1') kit = 'woodblock';
+    else if (kit === 2 || kit === '2') kit = 'mechanical';
+    else if (kit === 3 || kit === '3' || kit === 'snare_rim') kit = 'snare';
+    else if (kit === 4 || kit === '4') kit = 'hihat';
+    if (!kit) kit = 'digital';
+
+    const noiseBuf = this.getNoiseBuffer();
+
+    switch (kit) {
+      case 'digital': {
+        // Digital: Saf sinüs transient bipi (Downbeat: 1760 Hz, Normal: 880 Hz)
+        const osc = this.audioCtx.createOscillator();
+        const gain = this.audioCtx.createGain();
+        let freq = isDownbeat ? 1760 : 880;
+        if (layer.pitchShift && layer.pitchShift !== 1.0) {
+          freq *= layer.pitchShift;
+        }
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, triggerTime);
+
+        const duration = isDownbeat ? 0.040 : 0.025;
+        gain.gain.setValueAtTime(0.0001, triggerTime);
+        gain.gain.linearRampToValueAtTime(1.0, triggerTime + 0.0008);
+        gain.gain.exponentialRampToValueAtTime(0.0001, triggerTime + duration);
+
+        osc.connect(gain);
+        gain.connect(voiceGain);
+
+        osc.start(triggerTime);
+        osc.stop(triggerTime + duration + 0.005);
+        break;
       }
 
-      // Zero-latency attack: normalize peak to 0.88 (prevent clipping & volume match)
-      const normFactor = 0.88 / peak;
-      for (let i = 0; i < numFrames; i++) {
-        data[i] *= normFactor;
+      case 'woodblock': {
+        // Woodblock / Claves: Kısa gövdeli, yüksek rezonanslı bant geçiren filtreli (Bandpass Q: 12, 1200 Hz / 800 Hz) ahşap tıkırtısı
+        const targetFreq = isDownbeat ? 1200 : 800;
+        const filter = this.audioCtx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(targetFreq, triggerTime);
+        filter.Q.setValueAtTime(12, triggerTime);
+
+        // Ahşap gövde tonu
+        const osc = this.audioCtx.createOscillator();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(targetFreq * 1.5, triggerTime);
+        osc.frequency.exponentialRampToValueAtTime(targetFreq, triggerTime + 0.005);
+
+        const oscGain = this.audioCtx.createGain();
+        const duration = isDownbeat ? 0.045 : 0.030;
+        oscGain.gain.setValueAtTime(0.0001, triggerTime);
+        oscGain.gain.linearRampToValueAtTime(1.2, triggerTime + 0.0005);
+        oscGain.gain.exponentialRampToValueAtTime(0.0001, triggerTime + duration);
+
+        osc.connect(oscGain);
+        oscGain.connect(filter);
+
+        // Tokmak temas çıtlaması
+        if (noiseBuf) {
+          const noiseSrc = this.audioCtx.createBufferSource();
+          noiseSrc.buffer = noiseBuf;
+          const noiseGain = this.audioCtx.createGain();
+          noiseGain.gain.setValueAtTime(0.7, triggerTime);
+          noiseGain.gain.exponentialRampToValueAtTime(0.0001, triggerTime + 0.008);
+          noiseSrc.connect(noiseGain);
+          noiseGain.connect(filter);
+          noiseSrc.start(triggerTime, Math.random() * 0.5);
+          noiseSrc.stop(triggerTime + 0.012);
+        }
+
+        filter.connect(voiceGain);
+        osc.start(triggerTime);
+        osc.stop(triggerTime + duration + 0.005);
+        break;
       }
-      return buf;
-    };
 
-    // 0: DIGITAL (Clean Test Sinüs / Çirp)
-    const digDown = createBuffer(0.035, (t) => {
-      const freq = (t < 0.006) ? (2400 - (2400 - 1600) * (t / 0.006)) : 1600;
-      const attack = Math.min(1.0, t / 0.0003);
-      const env = attack * Math.exp(-t * 95.0);
-      return Math.sin(2 * Math.PI * freq * t) * env;
-    });
-    const digNorm = createBuffer(0.025, (t) => {
-      const freq = (t < 0.005) ? (1500 - (1500 - 1000) * (t / 0.005)) : 1000;
-      const attack = Math.min(1.0, t / 0.0003);
-      const env = attack * Math.exp(-t * 130.0);
-      return Math.sin(2 * Math.PI * freq * t) * env;
-    });
+      case 'snare': {
+        // Snare / Rim:
+        // Downbeat: 180 Hz gövde tonu + beyaz gürültü (white noise buffer) patlaması ile akustik snare/rimshot simülasyonu
+        // Normal: 450 Hz kısa sönümlü kuru cross-stick (sidestick)
+        if (isDownbeat) {
+          // 1. 180 Hz Akustik Gövde Tonu
+          const bodyOsc = this.audioCtx.createOscillator();
+          const bodyGain = this.audioCtx.createGain();
+          bodyOsc.type = 'triangle';
+          bodyOsc.frequency.setValueAtTime(230, triggerTime);
+          bodyOsc.frequency.exponentialRampToValueAtTime(180, triggerTime + 0.020);
 
-    // 1: WOODBLOCK (Organik Rezonanslı Ahşap Tokmak & Claves)
-    const woodDown = createBuffer(0.045, (t) => {
-      const attack = Math.min(1.0, t / 0.0002);
-      const strike = Math.sin(2 * Math.PI * (1200 + 1800 * Math.exp(-t * 400.0)) * t) * Math.exp(-t * 350.0);
-      const res = (
-        0.55 * Math.sin(2 * Math.PI * 2150 * t) +
-        0.28 * Math.sin(2 * Math.PI * 3250 * t) +
-        0.12 * Math.sin(2 * Math.PI * 4300 * t)
-      ) * Math.exp(-t * 70.0);
-      return attack * (0.4 * strike + 0.6 * res);
-    });
-    const woodNorm = createBuffer(0.035, (t) => {
-      const attack = Math.min(1.0, t / 0.0002);
-      const strike = Math.sin(2 * Math.PI * (800 + 1200 * Math.exp(-t * 450.0)) * t) * Math.exp(-t * 400.0);
-      const res = (
-        0.60 * Math.sin(2 * Math.PI * 1400 * t) +
-        0.30 * Math.sin(2 * Math.PI * 2100 * t) +
-        0.10 * Math.sin(2 * Math.PI * 2900 * t)
-      ) * Math.exp(-t * 90.0);
-      return attack * (0.35 * strike + 0.65 * res);
-    });
+          const bodyDur = 0.075;
+          bodyGain.gain.setValueAtTime(0.0001, triggerTime);
+          bodyGain.gain.linearRampToValueAtTime(0.95, triggerTime + 0.0008);
+          bodyGain.gain.exponentialRampToValueAtTime(0.0001, triggerTime + bodyDur);
 
-    // 2: MECHANICAL (Geleneksel Piramit Metronom Zili & Çift Maşa Tıkırtısı)
-    const mechDown = createBuffer(0.085, (t) => {
-      const attack = Math.min(1.0, t / 0.0002);
-      const bell = (
-        0.65 * Math.sin(2 * Math.PI * 1760 * t) +
-        0.35 * Math.sin(2 * Math.PI * 3520 * t)
-      ) * Math.exp(-t * 38.0);
-      const box = Math.sin(2 * Math.PI * 340 * t) * Math.exp(-t * 120.0);
-      return attack * (0.6 * bell + 0.4 * box);
-    });
-    const mechNorm = createBuffer(0.030, (t) => {
-      const attack = Math.min(1.0, t / 0.00015);
-      const cavity = (
-        0.60 * Math.sin(2 * Math.PI * 1150 * t) +
-        0.40 * Math.sin(2 * Math.PI * 750 * t)
-      ) * Math.exp(-t * 140.0);
-      const click = Math.sin(2 * Math.PI * 2400 * t) * Math.exp(-t * 500.0);
-      return attack * (0.75 * cavity + 0.25 * click);
-    });
+          bodyOsc.connect(bodyGain);
+          bodyGain.connect(voiceGain);
+          bodyOsc.start(triggerTime);
+          bodyOsc.stop(triggerTime + bodyDur + 0.005);
 
-    // 3: SNARE_RIM (Tok Akustik Rimshot & Kuru Cross-stick)
-    const noise = (t, i) => {
-      const x = Math.sin(i * 12.9898 + t * 78.233) * 43758.5453;
-      return (x - Math.floor(x)) * 2 - 1;
-    };
-    const snareDown = createBuffer(0.065, (t, i) => {
-      const attack = Math.min(1.0, t / 0.0002);
-      const bodyFreq = 140 + 70 * Math.exp(-t * 120.0);
-      const body = Math.sin(2 * Math.PI * bodyFreq * t) * Math.exp(-t * 55.0);
-      const rim = (0.7 * Math.sin(2 * Math.PI * 1350 * t) + 0.3 * Math.sin(2 * Math.PI * 2600 * t)) * Math.exp(-t * 80.0);
-      const wires = noise(t, i) * Math.exp(-t * 60.0);
-      return attack * (0.35 * body + 0.35 * rim + 0.30 * wires);
-    });
-    const snareNorm = createBuffer(0.028, (t, i) => {
-      const attack = Math.min(1.0, t / 0.00015);
-      const stick = Math.sin(2 * Math.PI * 1650 * t) * Math.exp(-t * 135.0);
-      const shell = Math.sin(2 * Math.PI * 580 * t) * Math.exp(-t * 110.0);
-      const microNoise = noise(t, i) * Math.exp(-t * 300.0) * 0.15;
-      return attack * (0.55 * stick + 0.35 * shell + microNoise);
-    });
+          // 2. Beyaz Gürültü Patlaması (Snare Wires)
+          if (noiseBuf) {
+            const noiseSrc = this.audioCtx.createBufferSource();
+            noiseSrc.buffer = noiseBuf;
+            const noiseFilter = this.audioCtx.createBiquadFilter();
+            noiseFilter.type = 'highpass';
+            noiseFilter.frequency.setValueAtTime(1200, triggerTime);
 
-    // 4: HIHAT (Vurgulu Yarı Açık & Keskin Kapalı Çıtlaması)
-    const hihatDown = createBuffer(0.085, (t, i) => {
-      const attack = Math.min(1.0, t / 0.0002);
-      const metal = (
-        Math.sin(2 * Math.PI * 295 * t) * 0.15 +
-        Math.sin(2 * Math.PI * 545 * t) * 0.20 +
-        Math.sin(2 * Math.PI * 800 * t) * 0.20 +
-        Math.sin(2 * Math.PI * 1200 * t) * 0.15 +
-        Math.sin(2 * Math.PI * 3600 * t) * 0.15 +
-        Math.sin(2 * Math.PI * 5800 * t) * 0.15
-      );
-      const sizzle = noise(t, i) * 0.6;
-      return attack * (metal * 0.45 + sizzle * 0.55) * Math.exp(-t * 40.0);
-    });
-    const hihatNorm = createBuffer(0.025, (t, i) => {
-      const attack = Math.min(1.0, t / 0.00015);
-      const metal = (
-        Math.sin(2 * Math.PI * 800 * t) * 0.25 +
-        Math.sin(2 * Math.PI * 1200 * t) * 0.25 +
-        Math.sin(2 * Math.PI * 3600 * t) * 0.25 +
-        Math.sin(2 * Math.PI * 5800 * t) * 0.25
-      );
-      const sizzle = noise(t, i) * 0.7;
-      return attack * (metal * 0.35 + sizzle * 0.65) * Math.exp(-t * 160.0);
-    });
+            const noiseGain = this.audioCtx.createGain();
+            const noiseDur = 0.080;
+            noiseGain.gain.setValueAtTime(0.0001, triggerTime);
+            noiseGain.gain.linearRampToValueAtTime(0.85, triggerTime + 0.0008);
+            noiseGain.gain.exponentialRampToValueAtTime(0.0001, triggerTime + noiseDur);
 
-    this.presetBuffers = {
-      [SoundPreset.DIGITAL]: [digNorm, digDown],
-      [SoundPreset.WOODBLOCK]: [woodNorm, woodDown],
-      [SoundPreset.MECHANICAL]: [mechNorm, mechDown],
-      [SoundPreset.SNARE_RIM]: [snareNorm, snareDown],
-      [SoundPreset.HIHAT]: [hihatNorm, hihatDown]
-    };
+            noiseSrc.connect(noiseFilter);
+            noiseFilter.connect(noiseGain);
+            noiseGain.connect(voiceGain);
+
+            noiseSrc.start(triggerTime, Math.random() * 0.5);
+            noiseSrc.stop(triggerTime + noiseDur + 0.005);
+          }
+        } else {
+          // Normal: 450 Hz kısa sönümlü kuru cross-stick (sidestick)
+          const stickOsc = this.audioCtx.createOscillator();
+          const stickGain = this.audioCtx.createGain();
+          stickOsc.type = 'sine';
+          stickOsc.frequency.setValueAtTime(700, triggerTime);
+          stickOsc.frequency.exponentialRampToValueAtTime(450, triggerTime + 0.005);
+
+          const stickDur = 0.022; // ~22ms kısa sönüm
+          stickGain.gain.setValueAtTime(0.0001, triggerTime);
+          stickGain.gain.linearRampToValueAtTime(1.0, triggerTime + 0.0004);
+          stickGain.gain.exponentialRampToValueAtTime(0.0001, triggerTime + stickDur);
+
+          stickOsc.connect(stickGain);
+          stickGain.connect(voiceGain);
+          stickOsc.start(triggerTime);
+          stickOsc.stop(triggerTime + stickDur + 0.005);
+
+          // Kuru temas gürültüsü
+          if (noiseBuf) {
+            const noiseSrc = this.audioCtx.createBufferSource();
+            noiseSrc.buffer = noiseBuf;
+            const clickFilter = this.audioCtx.createBiquadFilter();
+            clickFilter.type = 'bandpass';
+            clickFilter.frequency.setValueAtTime(3200, triggerTime);
+            clickFilter.Q.setValueAtTime(3.0, triggerTime);
+
+            const noiseGain = this.audioCtx.createGain();
+            noiseGain.gain.setValueAtTime(0.4, triggerTime);
+            noiseGain.gain.exponentialRampToValueAtTime(0.0001, triggerTime + 0.010);
+
+            noiseSrc.connect(clickFilter);
+            clickFilter.connect(noiseGain);
+            noiseGain.connect(voiceGain);
+
+            noiseSrc.start(triggerTime, Math.random() * 0.5);
+            noiseSrc.stop(triggerTime + 0.015);
+          }
+        }
+        break;
+      }
+
+      case 'hihat': {
+        // Hi-Hat: Yüksek geçiren filtreli (Highpass 7000 Hz) metalik gürültü (noise burst) transient'ı
+        // Downbeat için hafif uzun sönüm (half-open, ~0.070s), normal vuruş için ultra kısa sönüm (closed hat, ~0.020s)
+        if (noiseBuf) {
+          const noiseSrc = this.audioCtx.createBufferSource();
+          noiseSrc.buffer = noiseBuf;
+
+          const hpFilter = this.audioCtx.createBiquadFilter();
+          hpFilter.type = 'highpass';
+          hpFilter.frequency.setValueAtTime(7000, triggerTime);
+
+          const gain = this.audioCtx.createGain();
+          const duration = isDownbeat ? 0.070 : 0.020;
+          const peak = isDownbeat ? 0.95 : 0.70;
+
+          gain.gain.setValueAtTime(0.0001, triggerTime);
+          gain.gain.linearRampToValueAtTime(peak, triggerTime + 0.0005);
+          gain.gain.exponentialRampToValueAtTime(0.0001, triggerTime + duration);
+
+          noiseSrc.connect(hpFilter);
+          hpFilter.connect(gain);
+          gain.connect(voiceGain);
+
+          noiseSrc.start(triggerTime, Math.random() * 0.5);
+          noiseSrc.stop(triggerTime + duration + 0.005);
+        }
+        break;
+      }
+
+      case 'mechanical': {
+        // Mechanical: Düşük frekanslı tok transient tıkırtısı (250 Hz - 400 Hz)
+        const targetFreq = isDownbeat ? 400 : 250;
+        const osc = this.audioCtx.createOscillator();
+        const filter = this.audioCtx.createBiquadFilter();
+        const gain = this.audioCtx.createGain();
+
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(targetFreq * 2.2, triggerTime);
+        osc.frequency.exponentialRampToValueAtTime(targetFreq, triggerTime + 0.004);
+
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(targetFreq * 2.8, triggerTime);
+
+        const duration = isDownbeat ? 0.030 : 0.020;
+        gain.gain.setValueAtTime(0.0001, triggerTime);
+        gain.gain.linearRampToValueAtTime(0.85, triggerTime + 0.0004);
+        gain.gain.exponentialRampToValueAtTime(0.0001, triggerTime + duration);
+
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(voiceGain);
+
+        osc.start(triggerTime);
+        osc.stop(triggerTime + duration + 0.005);
+        break;
+      }
+
+      default: {
+        const osc = this.audioCtx.createOscillator();
+        const gain = this.audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(isDownbeat ? 1760 : 880, triggerTime);
+        const duration = 0.030;
+        gain.gain.setValueAtTime(0.0001, triggerTime);
+        gain.gain.linearRampToValueAtTime(1.0, triggerTime + 0.001);
+        gain.gain.exponentialRampToValueAtTime(0.0001, triggerTime + duration);
+        osc.connect(gain);
+        gain.connect(voiceGain);
+        osc.start(triggerTime);
+        osc.stop(triggerTime + duration + 0.005);
+        break;
+      }
+    }
   }
 
   synthesizeClick(layer, accent, triggerTime) {
-    if (accent === BeatAccent.MUTE || !this.audioCtx) return;
-
-    if (!this.presetBuffers) {
-      this.initSoundPresets();
-    }
-
-    const isDownbeat = (accent === BeatAccent.DOWNBEAT);
-    const presetId = layer.soundPreset ?? SoundPreset.DIGITAL;
-    const variationIdx = isDownbeat ? 1 : 0;
-    const buffer = this.presetBuffers?.[presetId]?.[variationIdx];
-
-    if (!buffer) return;
-
-    const source = this.audioCtx.createBufferSource();
-    source.buffer = buffer;
-
-    // Pitch shift desteği (varsa katman frekans oranını da hesaba kat)
-    let rate = layer.pitchShift || 1.0;
-    if (presetId === SoundPreset.DIGITAL && layer.synthFreq) {
-      rate *= (layer.synthFreq / 1000.0);
-    }
-    source.playbackRate.setValueAtTime(Math.max(0.2, Math.min(4.0, rate)), triggerTime);
-
-    const gainNode = this.audioCtx.createGain();
-    const velocity = isDownbeat ? 1.15 : 0.8;
-    const targetGain = Math.max(0, Math.min(1.5, layer.volume * velocity));
-    gainNode.gain.setValueAtTime(targetGain, triggerTime);
-
-    if (this.audioCtx.createStereoPanner) {
-      const panner = this.audioCtx.createStereoPanner();
-      panner.pan.setValueAtTime(Math.max(-1, Math.min(1, layer.pan)), triggerTime);
-      source.connect(gainNode);
-      gainNode.connect(panner);
-      panner.connect(this.masterGainNode);
-    } else {
-      source.connect(gainNode);
-      gainNode.connect(this.masterGainNode);
-    }
-
-    source.start(triggerTime);
+    this.triggerClick(layer, accent, triggerTime);
   }
 }
 
@@ -1449,6 +1571,15 @@ class MetronomeApp {
           <button class="btn-pulse-step btn-plus-pulse" data-id="${idx}">+</button>
         </div>
 
+        <!-- Ses Kiti Seçici (.sound-kit-select) -->
+        <select class="sound-kit-select select-layer-kit" data-id="${idx}" title="Sound Kit">
+          <option value="digital" ${layer.soundKit === 'digital' ? 'selected' : ''}>Digital</option>
+          <option value="woodblock" ${layer.soundKit === 'woodblock' ? 'selected' : ''}>Woodblock</option>
+          <option value="snare" ${layer.soundKit === 'snare' ? 'selected' : ''}>Snare / Rim</option>
+          <option value="hihat" ${layer.soundKit === 'hihat' ? 'selected' : ''}>Hi-Hat</option>
+          <option value="mechanical" ${layer.soundKit === 'mechanical' ? 'selected' : ''}>Mechanical</option>
+        </select>
+
         <!-- Orta: Kompakt Step Sequencer Butonları -->
         <div class="layer-pads-scroll" data-layer-idx="${idx}">
           ${layer.accents.map((accent, stepIdx) => `
@@ -1457,15 +1588,6 @@ class MetronomeApp {
             </div>
           `).join('')}
         </div>
-
-        <!-- Sağ: Ses Kiti Dropdown & Katman Ayar Çarkı -->
-        <select class="select-layer-kit" data-id="${idx}" title="Sound Kit">
-          <option value="${SoundPreset.SNARE_RIM}" ${layer.soundPreset === SoundPreset.SNARE_RIM ? 'selected' : ''}>Snare</option>
-          <option value="${SoundPreset.HIHAT}" ${layer.soundPreset === SoundPreset.HIHAT ? 'selected' : ''}>Hi-Hat</option>
-          <option value="${SoundPreset.WOODBLOCK}" ${layer.soundPreset === SoundPreset.WOODBLOCK ? 'selected' : ''}>Wood</option>
-          <option value="${SoundPreset.MECHANICAL}" ${layer.soundPreset === SoundPreset.MECHANICAL ? 'selected' : ''}>Mech</option>
-          <option value="${SoundPreset.DIGITAL}" ${layer.soundPreset === SoundPreset.DIGITAL ? 'selected' : ''}>Digital</option>
-        </select>
 
         <button class="btn-layer-gear" data-id="${idx}" title="Layer Settings">⚙️</button>
       `;
@@ -1477,15 +1599,19 @@ class MetronomeApp {
   }
 
   bindLayerRowEvents() {
-    // Ses Kiti Seçimi
-    this.layersList.querySelectorAll('.select-layer-kit').forEach(sel => {
+    // Ses Kiti Seçimi (.sound-kit-select)
+    this.layersList.querySelectorAll('.sound-kit-select').forEach(sel => {
       sel.addEventListener('change', (e) => {
         const id = parseInt(e.currentTarget.dataset.id);
-        const preset = parseInt(e.target.value);
-        this.engine.layers[id].soundPreset = preset;
+        const kitVal = e.target.value;
+        const layer = this.engine.layers[id];
+        if (layer) {
+          layer.soundKit = kitVal;
+          layer.soundPreset = kitVal;
+        }
         this.engine.ensureAudioContext().then(() => {
           if (this.engine.audioCtx && this.engine.audioCtx.state === 'running') {
-            this.engine.synthesizeClick(this.engine.layers[id], BeatAccent.DOWNBEAT, this.engine.audioCtx.currentTime + 0.01);
+            this.engine.triggerClick(layer, BeatAccent.DOWNBEAT, this.engine.audioCtx.currentTime + 0.01);
           }
         });
       });
@@ -1546,12 +1672,12 @@ class MetronomeApp {
     this.layerModalBody.innerHTML = `
       <div class="modal-section">
         <label>Sound Kit:</label>
-        <select id="modalLayerSoundPreset" class="modal-select">
-          <option value="${SoundPreset.SNARE_RIM}" ${layer.soundPreset === SoundPreset.SNARE_RIM ? 'selected' : ''}>Snare / Rimshot</option>
-          <option value="${SoundPreset.HIHAT}" ${layer.soundPreset === SoundPreset.HIHAT ? 'selected' : ''}>Hi-Hat (Closed/Open)</option>
-          <option value="${SoundPreset.WOODBLOCK}" ${layer.soundPreset === SoundPreset.WOODBLOCK ? 'selected' : ''}>Woodblock / Claves</option>
-          <option value="${SoundPreset.MECHANICAL}" ${layer.soundPreset === SoundPreset.MECHANICAL ? 'selected' : ''}>Mechanical Metronome</option>
-          <option value="${SoundPreset.DIGITAL}" ${layer.soundPreset === SoundPreset.DIGITAL ? 'selected' : ''}>Modern Digital Sine</option>
+        <select id="modalLayerSoundPreset" class="modal-select sound-kit-select">
+          <option value="digital" ${layer.soundKit === 'digital' ? 'selected' : ''}>Digital</option>
+          <option value="woodblock" ${layer.soundKit === 'woodblock' ? 'selected' : ''}>Woodblock</option>
+          <option value="snare" ${layer.soundKit === 'snare' ? 'selected' : ''}>Snare / Rim</option>
+          <option value="hihat" ${layer.soundKit === 'hihat' ? 'selected' : ''}>Hi-Hat</option>
+          <option value="mechanical" ${layer.soundKit === 'mechanical' ? 'selected' : ''}>Mechanical</option>
         </select>
       </div>
 
@@ -1604,11 +1730,12 @@ class MetronomeApp {
     const presetSel = document.getElementById('modalLayerSoundPreset');
     if (presetSel) {
       presetSel.addEventListener('change', (e) => {
-        layer.soundPreset = parseInt(e.target.value);
+        layer.soundKit = e.target.value;
+        layer.soundPreset = e.target.value;
         this.renderLayersUI();
         this.engine.ensureAudioContext().then(() => {
           if (this.engine.audioCtx && this.engine.audioCtx.state === 'running') {
-            this.engine.synthesizeClick(layer, BeatAccent.DOWNBEAT, this.engine.audioCtx.currentTime + 0.01);
+            this.engine.triggerClick(layer, BeatAccent.DOWNBEAT, this.engine.audioCtx.currentTime + 0.01);
           }
         });
       });

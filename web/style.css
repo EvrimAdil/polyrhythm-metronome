@@ -754,6 +754,7 @@ html, body {
 }
 
 /* Katman Ses Kiti Açılır Menüsü (Dropdown) */
+.sound-kit-select,
 .select-layer-kit {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid var(--border-subtle);
@@ -773,12 +774,15 @@ html, body {
   white-space: nowrap;
 }
 
+.sound-kit-select:hover,
+.sound-kit-select:focus,
 .select-layer-kit:hover,
 .select-layer-kit:focus {
   border-color: var(--layer-color, var(--accent-cyan));
   background: rgba(255, 255, 255, 0.1);
 }
 
+.sound-kit-select option,
 .select-layer-kit option {
   background: #12151e;
   color: #fff;
