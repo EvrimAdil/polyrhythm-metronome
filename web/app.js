@@ -206,7 +206,7 @@ const DEFAULT_FREQS = [1200, 800, 1600, 600, 950, 1400];
 class Layer {
   constructor(id, pulses = 4, totalSteps = 4, mode = RhythmMode.POLYRHYTHMIC) {
     this.id = id;
-    this.name = `Katman ${id + 1}`;
+    this.name = `Layer ${id + 1}`;
     this.color = LAYER_PALETTE[id % LAYER_PALETTE.length];
     this.mode = mode;
     this.pulses = pulses;        // Poliritmik pay veya Euclidean vuruş sayısı
@@ -1232,7 +1232,7 @@ class MetronomeApp {
     // Add Layer
     this.btnAddLayer.addEventListener('click', () => {
       if (this.engine.layers.length >= 6) {
-        alert('Maksimum 6 katman desteklenmektedir.');
+        alert('Maximum of 6 layers supported.');
         return;
       }
       const newId = this.engine.layers.length;
@@ -1328,7 +1328,7 @@ class MetronomeApp {
   bindTrainersEvents() {
     this.tempoTrainerEnable.addEventListener('change', (e) => {
       this.engine.trainers.tempoTrainer.enabled = e.target.checked;
-      this.tempoTrainerStatusBadge.textContent = e.target.checked ? 'AKTİF' : 'PASİF';
+      this.tempoTrainerStatusBadge.textContent = e.target.checked ? 'ACTIVE' : 'OFF';
       this.tempoTrainerStatusBadge.classList.toggle('active', e.target.checked);
     });
 
@@ -1354,7 +1354,7 @@ class MetronomeApp {
 
     this.muteTrainerEnable.addEventListener('change', (e) => {
       this.engine.trainers.muteTrainer.enabled = e.target.checked;
-      this.muteTrainerStatusBadge.textContent = e.target.checked ? 'AKTİF' : 'PASİF';
+      this.muteTrainerStatusBadge.textContent = e.target.checked ? 'ACTIVE' : 'OFF';
       this.muteTrainerStatusBadge.classList.toggle('active', e.target.checked);
     });
 
@@ -1379,15 +1379,15 @@ class MetronomeApp {
     if (isPlaying) {
       this.btnPlayPause.classList.add('playing');
       this.playIcon.textContent = '■';
-      this.playLabel.textContent = 'DURDUR';
-      this.statusText.textContent = 'ÇALIYOR';
+      this.playLabel.textContent = 'STOP';
+      this.statusText.textContent = 'PLAYING';
       const dot = this.engineStatus.querySelector('.status-dot');
       if (dot) dot.classList.add('playing');
     } else {
       this.btnPlayPause.classList.remove('playing');
       this.playIcon.textContent = '▶';
-      this.playLabel.textContent = 'BAŞLAT';
-      this.statusText.textContent = 'HAZIR';
+      this.playLabel.textContent = 'START';
+      this.statusText.textContent = 'READY';
       const dot = this.engineStatus.querySelector('.status-dot');
       if (dot) dot.classList.remove('playing');
     }
@@ -1417,13 +1417,13 @@ class MetronomeApp {
 
       const stateLabel = this.muteStatusDisplay.querySelector('.mute-indicator-state');
       if (isMuted) {
-        stateLabel.textContent = 'SESSİZ (TEST)';
+        stateLabel.textContent = 'MUTED (TEST)';
         stateLabel.classList.add('muted-active');
       } else {
-        stateLabel.textContent = 'SESLİ (ÇALIYOR)';
+        stateLabel.textContent = 'ACTIVE (PLAYING)';
         stateLabel.classList.remove('muted-active');
       }
-      this.muteCounterText.textContent = `Ölçü: ${current} / ${target}`;
+      this.muteCounterText.textContent = `Bars: ${current} / ${target}`;
     } else {
       this.muteProgressBar.style.width = '0%';
     }
@@ -1452,14 +1452,14 @@ class MetronomeApp {
         <!-- Orta: Kompakt Step Sequencer Butonları -->
         <div class="layer-pads-scroll" data-layer-idx="${idx}">
           ${layer.accents.map((accent, stepIdx) => `
-            <div class="pad-dot accent-${accent}" data-layer="${idx}" data-step="${stepIdx}" title="Vuruş ${stepIdx + 1}">
+            <div class="pad-dot accent-${accent}" data-layer="${idx}" data-step="${stepIdx}" title="Beat ${stepIdx + 1}">
               ${stepIdx + 1}
             </div>
           `).join('')}
         </div>
 
         <!-- Sağ: Ses Kiti Dropdown & Katman Ayar Çarkı -->
-        <select class="select-layer-kit" data-id="${idx}" title="Ses Kiti">
+        <select class="select-layer-kit" data-id="${idx}" title="Sound Kit">
           <option value="${SoundPreset.SNARE_RIM}" ${layer.soundPreset === SoundPreset.SNARE_RIM ? 'selected' : ''}>Snare</option>
           <option value="${SoundPreset.HIHAT}" ${layer.soundPreset === SoundPreset.HIHAT ? 'selected' : ''}>Hi-Hat</option>
           <option value="${SoundPreset.WOODBLOCK}" ${layer.soundPreset === SoundPreset.WOODBLOCK ? 'selected' : ''}>Wood</option>
@@ -1467,7 +1467,7 @@ class MetronomeApp {
           <option value="${SoundPreset.DIGITAL}" ${layer.soundPreset === SoundPreset.DIGITAL ? 'selected' : ''}>Digital</option>
         </select>
 
-        <button class="btn-layer-gear" data-id="${idx}" title="Katman Ayarları">⚙️</button>
+        <button class="btn-layer-gear" data-id="${idx}" title="Layer Settings">⚙️</button>
       `;
 
       this.layersList.appendChild(row);
@@ -1540,39 +1540,39 @@ class MetronomeApp {
     if (!layer) return;
 
     this.activeModalLayerId = layerId;
-    this.layerModalTitle.textContent = `${layer.name} (${layer.pulses} Vuruş)`;
+    this.layerModalTitle.textContent = `${layer.name} (${layer.pulses} Beats)`;
     this.layerModalTitle.style.color = layer.color;
 
     this.layerModalBody.innerHTML = `
       <div class="modal-section">
-        <label>Ses Kiti (Perküsyon):</label>
+        <label>Sound Kit:</label>
         <select id="modalLayerSoundPreset" class="modal-select">
           <option value="${SoundPreset.SNARE_RIM}" ${layer.soundPreset === SoundPreset.SNARE_RIM ? 'selected' : ''}>Snare / Rimshot</option>
-          <option value="${SoundPreset.HIHAT}" ${layer.soundPreset === SoundPreset.HIHAT ? 'selected' : ''}>Hi-Hat (Kapalı/Açık)</option>
+          <option value="${SoundPreset.HIHAT}" ${layer.soundPreset === SoundPreset.HIHAT ? 'selected' : ''}>Hi-Hat (Closed/Open)</option>
           <option value="${SoundPreset.WOODBLOCK}" ${layer.soundPreset === SoundPreset.WOODBLOCK ? 'selected' : ''}>Woodblock / Claves</option>
           <option value="${SoundPreset.MECHANICAL}" ${layer.soundPreset === SoundPreset.MECHANICAL ? 'selected' : ''}>Mechanical Metronome</option>
-          <option value="${SoundPreset.DIGITAL}" ${layer.soundPreset === SoundPreset.DIGITAL ? 'selected' : ''}>Modern Digital Click</option>
+          <option value="${SoundPreset.DIGITAL}" ${layer.soundPreset === SoundPreset.DIGITAL ? 'selected' : ''}>Modern Digital Sine</option>
         </select>
       </div>
 
       <div class="modal-section">
-        <label>Ritim Modu:</label>
+        <label>Rhythm Mode:</label>
         <select id="modalLayerMode" class="modal-select">
-          <option value="${RhythmMode.POLYRHYTHMIC}" ${layer.mode === RhythmMode.POLYRHYTHMIC ? 'selected' : ''}>Poliritmik (Oran)</option>
-          <option value="${RhythmMode.POLYMETRIC}" ${layer.mode === RhythmMode.POLYMETRIC ? 'selected' : ''}>Polimetrik (Metre)</option>
+          <option value="${RhythmMode.POLYRHYTHMIC}" ${layer.mode === RhythmMode.POLYRHYTHMIC ? 'selected' : ''}>Polyrhythmic (Ratio)</option>
+          <option value="${RhythmMode.POLYMETRIC}" ${layer.mode === RhythmMode.POLYMETRIC ? 'selected' : ''}>Polymetric (Meter)</option>
           <option value="${RhythmMode.EUCLIDEAN}" ${layer.mode === RhythmMode.EUCLIDEAN ? 'selected' : ''}>Euclidean (Bjorklund)</option>
         </select>
       </div>
 
       ${layer.mode !== RhythmMode.POLYRHYTHMIC ? `
       <div class="modal-section">
-        <label>Toplam Adım (n):</label>
+        <label>Total Steps (n):</label>
         <input type="number" id="modalLayerSteps" class="input-tiny" min="1" max="32" value="${layer.totalSteps}">
       </div>` : ''}
 
       <div class="modal-row-2col">
         <div class="modal-slider-item">
-          <span>Ses Düzeyi:</span>
+          <span>Volume:</span>
           <input type="range" id="modalLayerVol" min="0" max="1" step="0.05" value="${layer.volume}">
         </div>
         <div class="modal-slider-item">
@@ -1582,14 +1582,14 @@ class MetronomeApp {
       </div>
 
       <div class="modal-slider-item">
-        <span>Klik Frekansı / Pitch:</span>
+        <span>Tone / Pitch (Hz):</span>
         <input type="range" id="modalLayerFreq" min="400" max="2400" step="50" value="${layer.synthFreq}">
       </div>
 
       <div class="modal-actions-bar">
         <button id="modalBtnSolo" class="btn-modal-solo ${layer.isSolo ? 'active' : ''}">SOLO</button>
         <button id="modalBtnMute" class="btn-modal-mute ${layer.isMuted ? 'active' : ''}">MUTE</button>
-        ${this.engine.layers.length > 1 ? `<button id="modalBtnRemove" class="btn-modal-remove">Kaldır</button>` : ''}
+        ${this.engine.layers.length > 1 ? `<button id="modalBtnRemove" class="btn-modal-remove">Remove</button>` : ''}
       </div>
     `;
 

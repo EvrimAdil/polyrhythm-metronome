@@ -121,9 +121,10 @@ html, body {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: 10px 14px 14px;
+  padding: 10px 14px 70px; /* Safe Area Reservation for 60px AdMob banner */
   position: relative;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 /* ==========================================================================
@@ -786,7 +787,73 @@ html, body {
 }
 
 /* ==========================================================================
-   4. ALT ÇEKMECE (BOTTOM SHEET / MODAL)
+   4. AD PLACEMENT CONTAINER (Google AdMob 320x50 / Adaptive Reservation)
+   ========================================================================== */
+
+.ad-banner-container {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 10, 12, 0.95);
+  backdrop-filter: blur(8px);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 0 10px;
+  z-index: 100;
+  box-sizing: border-box;
+}
+
+.ad-banner-placeholder {
+  width: 100%;
+  max-width: 320px;
+  height: 50px;
+  border-radius: var(--radius-xs);
+  border: 1px dashed rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.02);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 8px;
+  box-sizing: border-box;
+  transition: border-color 0.2s ease;
+}
+
+.ad-banner-placeholder:hover {
+  border-color: rgba(0, 240, 255, 0.4);
+}
+
+.ad-badge {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 800;
+  color: var(--text-muted);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 3px;
+  padding: 1px 4px;
+  letter-spacing: 0.05em;
+  line-height: 1;
+}
+
+.ad-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ==========================================================================
+   5. BOTTOM SHEET / DRAWER & MODALS
    ========================================================================== */
 
 .drawer-overlay {
