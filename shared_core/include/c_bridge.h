@@ -33,6 +33,7 @@ typedef struct {
     float pitch_shift;
     float synth_frequency;
     uint8_t sound_type; // 0: SynthSine, 1: SynthWood, 2: PCMSample
+    uint8_t sound_preset; // 0: Digital, 1: Woodblock, 2: Mechanical, 3: Snare/Rim, 4: HiHat
     int32_t sample_id;
     bool is_muted;
     bool is_solo;
@@ -70,6 +71,8 @@ void polyrhythm_set_time_signature(PolyrhythmEngineHandle handle, uint16_t numer
 size_t polyrhythm_add_layer(PolyrhythmEngineHandle handle, const CLayerConfig* config);
 bool polyrhythm_set_layer_config(PolyrhythmEngineHandle handle, size_t layer_idx, const CLayerConfig* config);
 bool polyrhythm_get_layer_config(PolyrhythmEngineHandle handle, size_t layer_idx, CLayerConfig* out_config);
+void polyrhythm_set_layer_sound_preset(PolyrhythmEngineHandle handle, size_t layer_idx, uint8_t sound_preset);
+uint8_t polyrhythm_get_layer_sound_preset(PolyrhythmEngineHandle handle, size_t layer_idx);
 void polyrhythm_remove_layer(PolyrhythmEngineHandle handle, size_t layer_idx);
 void polyrhythm_clear_layers(PolyrhythmEngineHandle handle);
 size_t polyrhythm_get_layer_count(PolyrhythmEngineHandle handle);

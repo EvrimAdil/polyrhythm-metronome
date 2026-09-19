@@ -65,9 +65,13 @@ public:
     bool load_sample(size_t slot, const float* data, size_t frame_count, uint16_t channels, uint32_t sample_rate);
 
 private:
+    void generate_preset_samples();
+
     uint32_t sample_rate_{DEFAULT_SAMPLE_RATE};
     std::array<ActiveVoice, MAX_VOICES> voices_{};
     std::array<PCMSampleData, MAX_SAMPLE_SLOTS> sample_slots_{};
+    static constexpr size_t NUM_SOUND_PRESETS = 5;
+    std::array<PCMSampleData, NUM_SOUND_PRESETS * 2> preset_samples_{}; // 0: Digital D, 1: Digital N, etc.
 };
 
 } // namespace polyrhythm

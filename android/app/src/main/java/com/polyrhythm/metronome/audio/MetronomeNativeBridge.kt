@@ -15,6 +15,14 @@ data class BeatEventData(
     val bpm: Int
 )
 
+enum class SoundPreset(val id: Int) {
+    DIGITAL(0),
+    WOODBLOCK(1),
+    MECHANICAL(2),
+    SNARE_RIM(3),
+    HIHAT(4)
+}
+
 class MetronomeNativeBridge {
     companion object {
         init {
@@ -55,6 +63,15 @@ class MetronomeNativeBridge {
         volume: Float = 0.8f, pan: Float = 0.0f, pitch: Float = 1.0f, synthFreq: Float = 1000.0f
     ): Int {
         return nativeAddLayer(mode, pulses, totalSteps, subdiv, volume, pan, pitch, synthFreq)
+    }
+
+    fun setLayerSoundPreset(layerIdx: Int, preset: SoundPreset) {
+        nativeSetLayerSoundPreset(layerIdx, preset.id)
+    }
+
+    fun getLayerSoundPreset(layerIdx: Int): SoundPreset {
+        val id = nativeGetLayerSoundPreset(layerIdx)
+        return SoundPreset.values().firstOrNull { it.id == id } ?: SoundPreset.DIGITAL
     }
 
     fun removeLayer(layerIdx: Int) = nativeRemoveLayer(layerIdx)
@@ -110,6 +127,8 @@ class MetronomeNativeBridge {
         mode: Int, pulses: Int, totalSteps: Int, subdiv: Int,
         volume: Float, pan: Float, pitch: Float, synthFreq: Float
     ): Int
+    private external fun nativeSetLayerSoundPreset(layerIdx: Int, presetId: Int)
+    private external fun nativeGetLayerSoundPreset(layerIdx: Int): Int
     private external fun nativeRemoveLayer(layerIdx: Int)
     private external fun nativeSetTempoTrainer(
         enabled: Boolean, startBpm: Double, targetBpm: Double, stepBpm: Double, interval: Int, autoReverse: Boolean

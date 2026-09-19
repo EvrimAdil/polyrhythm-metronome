@@ -30,6 +30,8 @@ fun JogWheel(
 ) {
     var rotationAngle by remember { mutableStateOf(0f) }
     var previousTouchAngle by remember { mutableStateOf<Float?>(null) }
+    var angleAccumulator by remember { mutableStateOf(0f) }
+    val radPerBpm = 4.5f * (PI.toFloat() / 180f) // 4.5 degrees per 1 BPM
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -44,10 +46,18 @@ fun JogWheel(
                         onDragStart = { offset ->
                             val center = Offset(size.width / 2f, size.height / 2f)
                             previousTouchAngle = atan2(offset.y - center.y, offset.x - center.x)
+                            angleAccumulator = 0f
                         },
-                        onDragEnd = { previousTouchAngle = null },
-                        onDragCancel = { previousTouchAngle = null },
+                        onDragEnd = {
+                            previousTouchAngle = null
+                            angleAccumulator = 0f
+                        },
+                        onDragCancel = {
+                            previousTouchAngle = null
+                            angleAccumulator = 0f
+                        },
                         onDrag = { change, _ ->
+                            change.consume()
                             val center = Offset(size.width / 2f, size.height / 2f)
                             val currentAngle = atan2(change.position.y - center.y, change.position.x - center.x)
                             previousTouchAngle?.let { prev ->
@@ -57,10 +67,15 @@ fun JogWheel(
                                 if (delta < -PI) delta += (2 * PI).toFloat()
 
                                 rotationAngle += delta
-                                // Her 1 radyan yaklaşık 10 BPM hassasiyeti
-                                val bpmDelta = (delta / (PI.toFloat() / 16f)) * 1.5
-                                val newBpm = (currentBpm + bpmDelta).coerceIn(20.0, 400.0)
-                                onBpmChanged(round(newBpm * 10.0) / 10.0)
+                                angleAccumulator += delta
+
+                                // Hassasiyet Ölçekleme: Her 4.5 derecede 1 BPM
+                                val bpmSteps = (angleAccumulator / radPerBpm).toInt()
+                                if (bpmSteps != 0) {
+                                    angleAccumulator -= bpmSteps * radPerBpm
+                                    val newBpm = (currentBpm + bpmSteps).coerceIn(20.0, 400.0)
+                                    onBpmChanged(round(newBpm))
+                                }
                             }
                             previousTouchAngle = currentAngle
                         }

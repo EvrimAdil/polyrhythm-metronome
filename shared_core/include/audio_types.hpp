@@ -30,6 +30,14 @@ enum class SoundType : uint8_t {
     PCMSample = 2       // RAM'e yüklenmiş WAV ses örneği
 };
 
+enum class SoundPreset : uint8_t {
+    DIGITAL = 0,
+    WOODBLOCK = 1,
+    MECHANICAL = 2,
+    SNARE_RIM = 3,
+    HIHAT = 4
+};
+
 struct BeatEvent {
     uint64_t sample_timestamp{0};
     uint8_t layer_index{0};
@@ -59,7 +67,8 @@ struct LayerConfig {
     float pitch_shift{1.0f};     // 0.5f ... 2.0f
     float synth_frequency{1000.0f}; // Hz (Sentetik klik için frekans)
     SoundType sound_type{SoundType::SyntheticSine};
-    int32_t sample_id{-1};       // WAV sample slot indeksi (-1 sentetik)
+    SoundPreset sound_preset{SoundPreset::DIGITAL};
+    int32_t sample_id{-1};       // WAV sample slot indeksi (-1 sentetik / dahili preset)
     bool is_muted{false};
     bool is_solo{false};
 

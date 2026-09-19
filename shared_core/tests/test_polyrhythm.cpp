@@ -84,6 +84,19 @@ int main() {
     assert(c_handle != nullptr);
     polyrhythm_set_bpm(c_handle, 140.0);
     assert(std::abs(polyrhythm_get_bpm(c_handle) - 140.0) < 0.01);
+
+    CLayerConfig c_layer{};
+    c_layer.layer_id = 0;
+    c_layer.mode = 0;
+    c_layer.ratio_pulses = 4;
+    c_layer.total_steps = 4;
+    c_layer.volume = 0.9f;
+    c_layer.sound_preset = 3; // SNARE_RIM
+    polyrhythm_add_layer(c_handle, &c_layer);
+    assert(polyrhythm_get_layer_sound_preset(c_handle, 0) == 3);
+    polyrhythm_set_layer_sound_preset(c_handle, 0, 4); // HIHAT
+    assert(polyrhythm_get_layer_sound_preset(c_handle, 0) == 4);
+
     polyrhythm_destroy(c_handle);
 
     std::cout << "[PASS] Polyrhythm Engine & C-Bridge tests passed successfully!" << std::endl;

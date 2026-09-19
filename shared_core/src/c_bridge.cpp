@@ -22,6 +22,7 @@ static LayerConfig to_cpp_layer_config(const CLayerConfig& c) {
     cpp.pitch_shift = c.pitch_shift;
     cpp.synth_frequency = c.synth_frequency;
     cpp.sound_type = static_cast<SoundType>(c.sound_type);
+    cpp.sound_preset = static_cast<SoundPreset>(c.sound_preset);
     cpp.sample_id = c.sample_id;
     cpp.is_muted = c.is_muted;
     cpp.is_solo = c.is_solo;
@@ -44,6 +45,7 @@ static CLayerConfig to_c_layer_config(const LayerConfig& cpp) {
     c.pitch_shift = cpp.pitch_shift;
     c.synth_frequency = cpp.synth_frequency;
     c.sound_type = static_cast<uint8_t>(cpp.sound_type);
+    c.sound_preset = static_cast<uint8_t>(cpp.sound_preset);
     c.sample_id = cpp.sample_id;
     c.is_muted = cpp.is_muted;
     c.is_solo = cpp.is_solo;
@@ -129,6 +131,27 @@ bool polyrhythm_get_layer_config(PolyrhythmEngineHandle handle, size_t layer_idx
         }
     }
     return false;
+}
+
+void polyrhythm_set_layer_sound_preset(PolyrhythmEngineHandle handle, size_t layer_idx, uint8_t sound_preset) {
+    if (handle != nullptr) {
+        LayerConfig cpp_cfg{};
+        auto* engine = reinterpret_cast<PolyrhythmEngine*>(handle);
+        if (engine->get_layer_config(layer_idx, cpp_cfg)) {
+            cpp_cfg.sound_preset = static_cast<SoundPreset>(sound_preset);
+            engine->set_layer_config(layer_idx, cpp_cfg);
+        }
+    }
+}
+
+uint8_t polyrhythm_get_layer_sound_preset(PolyrhythmEngineHandle handle, size_t layer_idx) {
+    if (handle != nullptr) {
+        LayerConfig cpp_cfg{};
+        if (reinterpret_cast<PolyrhythmEngine*>(handle)->get_layer_config(layer_idx, cpp_cfg)) {
+            return static_cast<uint8_t>(cpp_cfg.sound_preset);
+        }
+    }
+    return 0;
 }
 
 void polyrhythm_remove_layer(PolyrhythmEngineHandle handle, size_t layer_idx) {

@@ -91,6 +91,7 @@ Java_com_polyrhythm_metronome_audio_MetronomeNativeBridge_nativeAddLayer(
     cfg.pan = pan;
     cfg.pitch_shift = pitch;
     cfg.synth_frequency = synthFreq;
+    cfg.sound_preset = 0; // Digital default
     cfg.accent_count = cfg.total_steps;
     cfg.accents[0] = 2; // Downbeat
     for (size_t i = 1; i < 64; ++i) {
@@ -98,6 +99,23 @@ Java_com_polyrhythm_metronome_audio_MetronomeNativeBridge_nativeAddLayer(
     }
 
     return static_cast<jint>(polyrhythm_add_layer(sDriver->getEngineHandle(), &cfg));
+}
+
+JNIEXPORT void JNICALL
+Java_com_polyrhythm_metronome_audio_MetronomeNativeBridge_nativeSetLayerSoundPreset(
+    JNIEnv* /*env*/, jobject /*thiz*/, jint layerIdx, jint presetId) {
+    if (sDriver) {
+        polyrhythm_set_layer_sound_preset(sDriver->getEngineHandle(), static_cast<size_t>(layerIdx), static_cast<uint8_t>(presetId));
+    }
+}
+
+JNIEXPORT jint JNICALL
+Java_com_polyrhythm_metronome_audio_MetronomeNativeBridge_nativeGetLayerSoundPreset(
+    JNIEnv* /*env*/, jobject /*thiz*/, jint layerIdx) {
+    if (sDriver) {
+        return static_cast<jint>(polyrhythm_get_layer_sound_preset(sDriver->getEngineHandle(), static_cast<size_t>(layerIdx)));
+    }
+    return 0;
 }
 
 JNIEXPORT void JNICALL
